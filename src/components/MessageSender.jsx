@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 const MessageSender = () => {
@@ -7,6 +7,7 @@ const MessageSender = () => {
     const [status, setStatus] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
+    const [serverStatus, setServerStatus] = useState("unknown");
 
     // नंबर को फॉर्मैट करने का फंक्शन
     const formatPhoneNumber = (number) => {
@@ -187,6 +188,30 @@ const MessageSender = () => {
         }
     };
 
+    const checkServerStatus = async () => {
+        try {
+            const response = await fetch('http://localhost:3001/status');
+            
+            if (response.ok) {
+                const data = await response.json();
+                setServerStatus(data.connected ? "connected" : "disconnected");
+                setStatus(null);
+            } else {
+                throw new Error('Server response not ok');
+            }
+        } catch (err) {
+            console.error('Server status check error:', err); // Debug log
+            setServerStatus("disconnected");
+            setStatus("Cannot connect to server. Please make sure the server is running.");
+        }
+    };
+
+    useEffect(() => {
+        checkServerStatus();
+        const interval = setInterval(checkServerStatus, 10000);
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <div className="flex flex-col items-center justify-center min-h-screen w-full p-2 sm:p-4 bg-gray-50">
             {/* Header Section */}
@@ -200,6 +225,17 @@ const MessageSender = () => {
                 <p className="text-gray-600 max-w-4xl mx-auto text-xs sm:text-sm mb-2 sm:mb-4">
                     Send bulk WhatsApp messages efficiently. Enter numbers manually or upload from Excel files.
                 </p>
+
+                <div className="inline-flex items-center justify-center px-2 sm:px-3 py-1 rounded-full bg-gray-50 border border-gray-200 shadow-sm">
+                    <div className={`w-2 h-2 rounded-full mr-1 sm:mr-2 ${
+                        serverStatus === "connected" ? "bg-green-500 animate-pulse" : 
+                        serverStatus === "disconnected" ? "bg-red-500" : "bg-yellow-500"
+                    }`}></div>
+                    <span className="text-xs font-medium text-gray-700">
+                        {serverStatus === "connected" ? "Server Online" : 
+                        serverStatus === "disconnected" ? "Server Offline" : "Connecting..."}
+                    </span>
+                </div>
             </div>
             
             <div className="w-full max-w-5xl relative">
