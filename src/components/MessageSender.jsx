@@ -161,7 +161,7 @@ const MessageSender = () => {
         }
 
         try {
-            const response = await fetch('http://localhost:3001/send', {
+            const response = await fetch('https://whatsapp-sender.pizeonfly.com/send', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -190,7 +190,7 @@ const MessageSender = () => {
 
     const checkServerStatus = async () => {
         try {
-            const response = await fetch('http://localhost:3001/status');
+            const response = await fetch('https://whatsapp-sender.pizeonfly.com/status');
             
             if (response.ok) {
                 const data = await response.json();
