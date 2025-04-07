@@ -8,6 +8,7 @@ const MessageSender = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [fileUploadError, setFileUploadError] = useState(null);
     const [serverStatus, setServerStatus] = useState("unknown");
+    const [messageResults, setMessageResults] = useState([]);
 
     // नंबर को फॉर्मैट करने का फंक्शन
     const formatPhoneNumber = (number) => {
@@ -41,9 +42,11 @@ const MessageSender = () => {
                     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                     let extractedNumbers = [];
-                    jsonData.forEach(row => {
+                    for (let row of jsonData) {
                         if (Array.isArray(row)) {
-                            row.forEach(cell => {
+                            for (let cell of row) {
+                                if (extractedNumbers.length >= 100) break; // Stop after 100 numbers
+                                
                                 const cellStr = String(cell);
                                 if (/\d{10,}/.test(cellStr)) {
                                     const cleanedNumber = formatPhoneNumber(cellStr);
@@ -51,9 +54,10 @@ const MessageSender = () => {
                                         extractedNumbers.push(cleanedNumber);
                                     }
                                 }
-                            });
+                            }
                         }
-                    });
+                        if (extractedNumbers.length >= 100) break;
+                    }
 
                     resolve(extractedNumbers);
                 } catch (err) {
@@ -147,12 +151,13 @@ const MessageSender = () => {
         e.preventDefault();
         setIsLoading(true);
         setStatus('');
+        setMessageResults([]);
 
-        // नंबर्स को फॉर्मैट करें और फिल्टर करें
         const numberArray = numbers
             .split(',')
             .map(num => formatPhoneNumber(num.trim()))
-            .filter(num => num.length >= 12); // कम से कम 12 डिजिट होने चाहिए (91 + 10 डिजिट)
+            .filter(num => num.length >= 12)
+            .slice(0, 100);
 
         if (numberArray.length === 0) {
             setStatus('Error: Please enter valid phone numbers');
@@ -175,9 +180,8 @@ const MessageSender = () => {
             const data = await response.json();
             
             if (response.ok) {
-                setStatus('Messages sent successfully!');
-                setNumbers('');
-                setMessage('');
+                setStatus(`Messages sent successfully! (${data.totalSent} sent, ${data.totalFailed} failed)`);
+                setMessageResults(data.results);
             } else {
                 setStatus(`Error: ${data.error}`);
             }
@@ -200,7 +204,7 @@ const MessageSender = () => {
                 throw new Error('Server response not ok');
             }
         } catch (err) {
-            console.error('Server status check error:', err); // Debug log
+            console.error('Server status check error:', err);
             setServerStatus("disconnected");
             setStatus("Cannot connect to server. Please make sure the server is running.");
         }
@@ -340,37 +344,60 @@ const MessageSender = () => {
                         <div className="w-full lg:w-1/2 bg-white rounded-xl p-3 sm:p-4 border border-gray-200 shadow-sm hover:shadow-md transition-all mt-3 lg:mt-0">
                             <div className="flex justify-between items-center mb-2 sm:mb-3">
                                 <h3 className="text-sm sm:text-md font-semibold text-gray-800 flex items-center">
-                                    <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                     </svg>
-                                    Status
+                                    Message Status
                                 </h3>
                             </div>
 
-                            <div className="flex flex-col items-center justify-center h-56 sm:h-64 md:h-72 lg:h-80 bg-white rounded-lg border border-gray-200">
+                            <div className="h-[500px] overflow-y-auto rounded-lg border border-gray-100 bg-gray-50">
                                 {isLoading ? (
-                                    <div className="flex flex-col items-center justify-center">
-                                        <svg className="animate-spin h-8 w-8 sm:h-10 sm:w-10 text-indigo-500 mb-2 sm:mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <div className="flex flex-col items-center justify-center h-full p-4">
+                                        <svg className="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
-                                        <p className="text-indigo-600 font-medium text-xs sm:text-sm">Sending messages...</p>
-                                        <p className="text-gray-500 text-xs mt-1">Please wait</p>
+                                        <p className="mt-2 text-sm text-gray-600">Sending messages...</p>
                                     </div>
-                                ) : status ? (
-                                    <div className={`text-center p-4 rounded-lg ${status.includes('Error') ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}>
-                                        <svg className={`w-12 h-12 mx-auto mb-2 ${status.includes('Error') ? 'text-red-500' : 'text-green-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            {status.includes('Error') ? (
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            ) : (
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            )}
-                                        </svg>
-                                        <p className="font-medium text-sm">{status}</p>
+                                ) : messageResults.length > 0 ? (
+                                    <div className="space-y-2 p-3">
+                                        {status && (
+                                            <div className={`p-3 rounded-lg text-sm mb-3 sticky top-0 z-10 shadow-sm ${
+                                                status.includes('Error') 
+                                                    ? 'bg-red-100 text-red-700 border border-red-200' 
+                                                    : 'bg-green-100 text-green-700 border border-green-200'
+                                            }`}>
+                                                {status}
+                                            </div>
+                                        )}
+                                        <div className="divide-y divide-gray-200">
+                                            {messageResults.map((result, index) => (
+                                                <div key={index} 
+                                                     className="py-3 px-2 flex justify-between items-center hover:bg-white transition-colors duration-150 rounded-lg">
+                                                    <div className="flex items-center">
+                                                        <span className={`w-2 h-2 rounded-full mr-2 ${
+                                                            result.status === 'sent' ? 'bg-green-500' : 'bg-red-500'
+                                                        }`}></span>
+                                                        <span className="text-sm font-medium text-gray-700">{result.number}</span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-3">
+                                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                                            result.status === 'sent' 
+                                                                ? 'bg-green-100 text-green-800' 
+                                                                : 'bg-red-100 text-red-800'
+                                                        }`}>
+                                                            {result.status}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500 min-w-[60px]">{result.timestamp}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                 ) : (
-                                    <div className="text-center">
-                                        <svg className="w-12 h-12 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="flex flex-col items-center justify-center h-full p-4">
+                                        <svg className="w-12 h-12 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                                         </svg>
                                         <p className="text-gray-700 font-medium text-sm">Ready to send messages</p>
